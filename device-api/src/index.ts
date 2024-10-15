@@ -1,5 +1,7 @@
 import { Hono } from "hono";
 import postgres from "postgres";
+import { insertRecord, parseCSV } from "./events";
+import { getDeviceId } from "./device";
 
 export interface Env {
   HYPERDRIVE: Hyperdrive;
@@ -99,22 +101,58 @@ app.post("/image", async (c) => {
   }
 });
 app.post("/upload", async (c) => {
-  console.log("recieved post 2");
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader) {
+    return c.text("No device token", 401);
+  }
+  const token = authHeader.replace("Bearer ", "");
+  console.log("device token:", token);
+
   try {
     // Get the image from the request
     const formData = await c.req.formData();
-    console.log(formData);
     const file = formData.get("file") as File;
     if (!file) {
       return c.text("No file uploaded", 400);
     }
-    console.log("file type", file.type);
-    console.log("file", file);
 
     // Check file type (you can expand this for security)
     const fileType = file.type;
     if (!["image/jpeg", "image/png", "text/csv"].includes(fileType)) {
       return c.text("Unsupported file type: " + file.type, 400);
+    }
+
+    const sql = postgres(c.env.HYPERDRIVE.connectionString);
+    let insertPromise;
+
+    try {
+      const deviceId = await getDeviceId(token, sql);
+      if (fileType === "text/csv") {
+        const csvText = await file.text(); // Read CSV as text
+        const records = parseCSV(csvText);
+
+        // Start the insert process but don't await it
+        insertPromise = await sql.begin(async (sql) => {
+          try {
+            console.log("Starting insert transaction for device:", deviceId);
+            console.log("inserting records", records.length);
+            const insertPromises = records.map((record) => {
+              console.log("Inserting record:", record);
+              return insertRecord(record, deviceId, sql)
+                .then(() => console.log("Inserted record:", record))
+                .catch((err) => console.error("Insert error:", err));
+            });
+            await Promise.all(insertPromises);
+            console.log("Records inserted successfully.");
+          } catch (error) {
+            console.error("Error during insert transaction:", error);
+            throw error;
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Database operation error:", error);
+      return c.text("An error occurred during database operation", 500);
     }
 
     // Store in Cloudflare R2
@@ -127,14 +165,30 @@ app.post("/upload", async (c) => {
       },
     });
 
+    // Start the background process for database inserts
+    if (insertPromise) {
+      insertPromise
+        .then(() => {
+          console.log("All records inserted successfully");
+        })
+        .catch((error) => {
+          console.error("Error inserting records:", error);
+        })
+        .finally(() => {
+          sql.end();
+        });
+    } else {
+      console.log("no promise!");
+      await sql.end();
+    }
+
     return c.json({
-      message: "File uploaded successfully",
+      message: "File upload successful, processing started",
       key: objectKey,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Upload error:", error);
-    console.log("Upload error:", error);
-    return c.text("File upload failed 2", 500);
+    return c.text(`File upload failed: ${error.message}`, 500);
   }
 });
 
