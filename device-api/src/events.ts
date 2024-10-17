@@ -1,7 +1,7 @@
 import postgres from "postgres";
 import { Context } from "hono";
 
-type CSVRecord = {
+export type CSVRecord = {
   timestamp: string;
   [key: string]: string | number | undefined;
 };
