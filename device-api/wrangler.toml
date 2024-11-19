@@ -26,6 +26,9 @@ max_batch_timeout = 30
 max_retries = 3
 dead_letter_queue = "csv-processing-dlq"
 
+[observability.logs]
+enabled = true
+
 
 # [vars]
 # MY_VAR = "my-variable"

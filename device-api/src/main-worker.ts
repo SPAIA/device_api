@@ -80,7 +80,7 @@ app.post("/upload", async (c) => {
     }
 
     const fileType = file.name.split(".")[1];
-    if (!["jpg", "png", "csv"].includes(fileType)) {
+    if (!["jpg", "png", "csv", "text/csv"].includes(fileType.toLowerCase())) {
       console.log("unsuportes", fileType);
       console.log("unsuportes", file.name);
       return c.text("Unsupported file type: " + file.type, 400);
@@ -89,15 +89,20 @@ app.post("/upload", async (c) => {
     // Store in Cloudflare R2 immediately
     const objectKey = `uploads/${crypto.randomUUID()}.${fileType}`;
     console.log("uploaded file", objectKey);
+    console.log("filename", file.name);
+    const filename = file.name;
     const r2Response = await c.env.BUCKET.put(objectKey, file.stream());
-    if (fileType.toLowerCase() == "csv") {
+    if (fileType.toLowerCase() == "csv" || fileType.toLowerCase() == "jpg") {
       console.log("Sending message to queue:", { token, objectKey, fileType });
       await c.env.MY_QUEUE.send({
         token,
         objectKey,
         fileType,
+        filename,
       });
       console.log("Message sent to queue successfully");
+    } else {
+      console.log("ft", fileType.toLowerCase());
     }
 
     return c.json({

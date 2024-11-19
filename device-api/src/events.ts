@@ -126,9 +126,74 @@ const insertRecord = async (record: CSVRecord, deviceId: number, sql: any) => {
         console.warn(
           `Sensor ID not found for ${key}. Skipping this sensor data.`
         );
+        console.log("data", record[key]);
       }
     }
   }
 };
+const insertMedia = async (
+  fileId: string,
+  deviceId: number,
+  time: string,
+  sql: any
+) => {
+  try {
+    const result = await sql.begin(async (sql: any) => {
+      // First ensure we have the event and get its ID
+      console.log("time", time);
+      const [eventResult] = await sql`
+        INSERT INTO "Events" (
+          "time",
+          "type",
+          "deviceId",
+          "createdAt",
+          "updatedAt",
+          "updatedBy"
+        )
+        VALUES (
+          TO_TIMESTAMP(${time}::bigint),
+          'eventType',
+          ${deviceId},
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP,
+          'device'
+        )
+        ON CONFLICT ("time", "deviceId")
+        DO UPDATE SET 
+          "updatedAt" = CURRENT_TIMESTAMP,
+          "updatedBy" = 'device'
+        RETURNING id
+      `;
+      console.log();
+      // Then insert the media record using the event ID
+      const [mediaResult] = await sql`
+        INSERT INTO "EventMedia" (
+          "eventId",
+          "fileId",
+          "source",
+          "createdAt",
+          "updatedAt"
+        )
+        VALUES (
+          ${eventResult.id},
+          ${fileId},
+          'r2',
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP
+        )
+        RETURNING *
+      `;
 
-export { parseCSV, insertRecord };
+      return mediaResult;
+    });
+
+    return result;
+  } catch (error: any) {
+    console.error(
+      `Error inserting media for fileId ${fileId} and deviceId ${deviceId}: ${error.message}`
+    );
+    throw error; // Re-throw the error to handle it at a higher level
+  }
+};
+
+export { parseCSV, insertRecord, insertMedia };
