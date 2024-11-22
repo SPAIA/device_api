@@ -2,43 +2,45 @@ import { insertMedia, insertRecord, parseCSV } from "./events";
 import postgres from "postgres";
 import type { CSVRecord } from "./events";
 import { getDeviceId } from "./device";
+import { createLogger } from "./utils/logger";
 
 export default {
   async queue(batch: MessageBatch<any>, env: any, ctx: ExecutionContext) {
-    console.log(`Processing batch of ${batch.messages.length} messages`);
+    const logger = createLogger({ executionCtx: ctx });
+    logger.info(`Processing batch of ${batch.messages.length} messages`);
     const sql = postgres(env.HYPERDRIVE.connectionString);
     for (const message of batch.messages) {
-      console.log(`Processing message: ${JSON.stringify(message.body)}`);
       const { token, objectKey, fileType, filename } = message.body;
-
+      const messageLogger = createLogger({
+        executionCtx: ctx,
+        messageId: message.id,
+        fileType,
+        objectKey,
+      });
+      messageLogger.info("Processing message", { filename });
       try {
-        console.log(`Getting device ID for token: ${token}`);
+        messageLogger.debug(`Getting device ID for token: ${token}`);
         const deviceId = await getDeviceId(token, sql);
-        console.log(`Device ID: ${deviceId}`);
+        messageLogger.info(`Device identified`, { deviceId });
         const fileResponse = await env.BUCKET.get(objectKey);
         if (!fileResponse) {
-          console.error("File not found in R2:", objectKey);
+          messageLogger.error("File not found in R2");
           continue;
         }
         if (fileType.toLowerCase().includes("csv")) {
-          console.log(`Fetching CSV file from R2: ${objectKey}`);
+          messageLogger.info("Processing CSV file");
 
           const csvText = await fileResponse.text();
-          console.log(`Parsing CSV file`);
           const records = parseCSV(csvText);
-          console.log(`Parsed ${records.length} records from CSV`);
-
-          console.log(`Inserting records into database`);
           await sql.begin(async (sql) => {
             const insertPromises = records.map((record: CSVRecord) =>
               insertRecord(record, deviceId, sql)
             );
             await Promise.all(insertPromises);
           });
-
-          console.log(`Successfully inserted records for device: ${deviceId}`);
+          messageLogger.info("Successfully inserted records");
         } else if (fileType.toLowerCase().includes("jpg")) {
-          console.log("processing jpg", filename);
+          messageLogger.info("Processing JPG file", { filename });
           let tsData = filename.split("/");
           let ts = tsData[tsData.length - 1].split(".")[0];
           insertMedia(objectKey, deviceId, ts ?? "", sql);

@@ -5,6 +5,7 @@
     "deploy": "wrangler deploy --minify src/index.ts"
   },
   "dependencies": {
+    "@logtail/edge": "^0.5.2",
     "hono": "^4.6.3",
     "postgres": "^3.4.4"
   },
