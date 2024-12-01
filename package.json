@@ -1,0 +1,16 @@
+{
+  "name": "device-api",
+  "scripts": {
+    "dev": "wrangler dev src/main-worker.ts",
+    "deploy": "wrangler deploy --minify src/main-worker.ts"
+  },
+  "dependencies": {
+    "@logtail/edge": "^0.5.2",
+    "hono": "^4.6.3",
+    "postgres": "^3.4.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240529.0",
+    "wrangler": "^3.78.12"
+  }
+}
