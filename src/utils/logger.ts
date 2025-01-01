@@ -8,6 +8,8 @@ export interface LogContext {
   messageId?: string;
   fileType?: string;
   objectKey?: string;
+  timestamp?: string;
+  operation?: string;
 }
 
 export const createLogger = (
@@ -31,10 +33,10 @@ export const createLogger = (
       const errorDetails =
         error instanceof Error
           ? {
-              name: error.name,
-              message: error.message,
-              stack: error.stack,
-            }
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+          }
           : error;
 
       logger.error(message, {

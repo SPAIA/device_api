@@ -197,7 +197,7 @@ const insertRecord = async (
           logger.debug("Inserting sensor data", {
             sensorId,
             sensorType: key,
-            value: record[key],
+            value: record[key] as string,
           });
 
           await sql`
