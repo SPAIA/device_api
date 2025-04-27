@@ -78,9 +78,9 @@ app.post("/upload", async (c) => {
     }
 
     const fileType = file.name.split(".")[1];
-    if (!["jpg", "png", "csv", "text/csv"].includes(fileType.toLowerCase())) {
-      console.log("unsuportes", fileType);
-      console.log("unsuportes", file.name);
+    if (!["jpg", "png", "csv", "pgm", "text/csv"].includes(fileType.toLowerCase())) {
+      console.log("unsuported", fileType);
+      console.log("unsuported", file.name);
       return c.text("Unsupported file type: " + file.type, 400);
     }
 
